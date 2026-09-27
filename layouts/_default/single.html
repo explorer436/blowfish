@@ -56,6 +56,7 @@
         <div class="article-content max-w-prose mb-20">
           {{ .Content }}
           {{ partial "backlinks.html" . }}
+          {{ partial "graph.html" . }}
           {{ $defaultReplyByEmail := site.Params.replyByEmail }}
           {{ $replyByEmail := default $defaultReplyByEmail .Params.replyByEmail }}
           {{ if $replyByEmail }}
