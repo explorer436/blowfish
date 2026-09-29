@@ -50,7 +50,11 @@
     {{ $orderByWeight := .Params.orderByWeight | default (site.Params.list.orderByWeight | default false) }}
     {{ $groupByYear := and (not $orderByWeight) $groupByYear }}
 
-    {{ if not $cardView }}
+    {{ range (.Paginate (.Pages.ByTitle)).Pages }}
+      {{ partial "article-link/simple.html" . }}
+    {{ end }}
+
+    <!-- {{ if not $cardView }}
       <section class="space-y-10 w-full">
         {{ if not $orderByWeight }}
           {{ range (.Paginate (.Pages.GroupByDate "2006")).PageGroups }}
@@ -130,7 +134,7 @@
           </section>
         {{ end }}{{/* End of cardViewScreenWidth */}}
       {{ end }}{{/* End of groupByYear */}}
-    {{ end }}{{/* End of cardView */}}
+    {{ end }}{{/* End of cardView */}} -->
   {{/* else: .Pages not greater to zero */}}
   {{ else }}
     <section class="mt-10 prose dark:prose-invert">
