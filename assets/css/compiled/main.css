@@ -1508,7 +1508,8 @@
     max-width: var(--container-md);
   }
   .max-w-prose {
-    max-width: 65ch;
+    /*max-width: 65ch;*/
+    max-width: 100% !important;
   }
   .max-w-xl {
     max-width: var(--container-xl);
