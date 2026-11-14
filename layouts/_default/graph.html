@@ -1,0 +1,158 @@
+{{ define "main" }}
+<div class="graph-container">
+    <h1>Knowledge Graph</h1>
+    <p>An interactive map of notes and connections extracted from Org-roam.</p>
+    <!-- Store the Hugo-generated URLs cleanly in HTML data attributes -->
+    <div id="org-roam-graph" 
+         data-graph-url="{{ "graph.json" | relURL }}"
+         data-posts-url="{{ "posts/" | relURL }}"
+         style="width: 100%; height: 600px; border: 1px solid var(--border-color);">
+    </div>
+</div>
+
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const container = document.getElementById('org-roam-graph');
+    const graphUrl = container.dataset.graphUrl;
+    const postsUrl = container.dataset.postsUrl;
+
+    const width = container.clientWidth || container.parentElement.clientWidth || 900;
+    const height = 650;
+
+    const svg = d3.select("#org-roam-graph")
+        .append("svg")
+        .attr("width", "100%")
+        .attr("height", "100%")
+        .attr("viewBox", [0, 0, width, height]);
+
+    const g = svg.append("g");
+    const zoom = d3.zoom()
+        .scaleExtent([0.1, 4])
+        .on("zoom", (event) => g.attr("transform", event.transform));
+    
+    svg.call(zoom);
+
+    d3.json(graphUrl).then(data => {
+        const validNodeIds = new Set(data.nodes.map(n => n.id));
+        const validLinks = data.links.filter(l => 
+            validNodeIds.has(l.source) && validNodeIds.has(l.target)
+        );
+
+        // 1. Calculate weights (connection count) for each node
+        const nodeDegree = {};
+        validLinks.forEach(l => {
+            const sourceId = typeof l.source === 'object' ? l.source.id : l.source;
+            const targetId = typeof l.target === 'object' ? l.target.id : l.target;
+            nodeDegree[sourceId] = (nodeDegree[sourceId] || 0) + 1;
+            nodeDegree[targetId] = (nodeDegree[targetId] || 0) + 1;
+        });
+
+        // Attach degree weight to each node object
+        data.nodes.forEach(n => {
+            n.weight = nodeDegree[n.id] || 0;
+        });
+
+        const simulation = d3.forceSimulation(data.nodes)
+            .force("link", d3.forceLink(validLinks).id(d => d.id).distance(45))
+            .force("charge", d3.forceManyBody().strength(-35))
+            .force("center", d3.forceCenter(width / 2, height / 2))
+            // Larger nodes repel more to prevent overlap
+            .force("collision", d3.forceCollide().radius(d => Math.min(3 + d.weight * 1.5, 14)));
+
+        const link = g.append("g")
+            .selectAll("line")
+            .data(validLinks)
+            .join("line")
+            .attr("stroke", "#ccc")
+            .attr("stroke-opacity", 0.3)
+            .attr("stroke-width", 1);
+
+        const node = g.append("g")
+            .selectAll("circle")
+            .data(data.nodes)
+            .join("circle")
+            // 2. Dynamic radius based on weight (min 3px, max 12px)
+            .attr("r", d => Math.min(3 + d.weight * 0.8, 12))
+            // 3. Color hubs differently (nodes with 5+ links get a vibrant highlight color)
+            .attr("fill", d => d.weight >= 5 ? "#ff7b72" : "#69b3a2")
+            .style("cursor", "pointer")
+            .call(drag(simulation));
+
+        node.append("title")
+            .text(d => `${d.title || "Untitled"} (${d.weight} connections)`);
+
+        // Neighborhood hover highlighting
+        const linkedByIndex = {};
+        validLinks.forEach(d => {
+            linkedByIndex[`${d.source.id},${d.target.id}`] = true;
+            linkedByIndex[`${d.target.id},${d.source.id}`] = true;
+        });
+
+        function isConnected(a, b) {
+            return linkedByIndex[`${a.id},${b.id}`] || a.id === b.id;
+        }
+
+        node.on("mouseover", (event, d) => {
+            node.style("opacity", o => isConnected(d, o) ? 1 : 0.15);
+            link.style("stroke-opacity", o => o.source.id === d.id || o.target.id === d.id ? 1 : 0.05)
+                .attr("stroke", o => o.source.id === d.id || o.target.id === d.id ? "#ff7b72" : "#ccc");
+        })
+        .on("mouseout", () => {
+            node.style("opacity", 1);
+            link.style("stroke-opacity", 0.3)
+                .attr("stroke", "#ccc");
+        });
+
+        // Click handler with console inspection & flexible URL fallback
+        node.on("click", (event, d) => {
+            if (!d.file) return;
+
+            // Clean any stray quotes or .org extensions from the file path
+            const cleanFile = d.file.replace(/["']/g, '').replace(/\.org$/, '');
+            
+            // Ensure the path starts cleanly without a double slash when combined with relURL
+            const relativePath = cleanFile.startsWith('/') ? cleanFile.slice(1) : cleanFile;
+            
+            // Construct the final URL with Hugo's relURL and a trailing slash
+            const targetUrl = `{{ "" | relURL }}${relativePath}/`;
+            
+            console.log("Navigating to URL:", targetUrl);
+            window.location.href = targetUrl;
+        });
+
+        simulation.on("tick", () => {
+            link
+                .attr("x1", d => d.source.x)
+                .attr("y1", d => d.source.y)
+                .attr("x2", d => d.target.x)
+                .attr("y2", d => d.target.y);
+
+            node
+                .attr("cx", d => d.x)
+                .attr("cy", d => d.y);
+        });
+    }).catch(err => {
+        console.error("Failed to load or render graph:", err);
+    });
+
+    function drag(simulation) {
+        return d3.drag()
+            .on("start", (event, d) => {
+                if (!event.active) simulation.alphaTarget(0.3).restart();
+                d.fx = d.x;
+                d.fy = d.y;
+            })
+            .on("drag", (event, d) => {
+                d.fx = event.x;
+                d.fy = event.y;
+            })
+            .on("end", (event, d) => {
+                if (!event.active) simulation.alphaTarget(0);
+                d.fx = null;
+                d.fy = null;
+            });
+    }
+});
+</script>
+{{ end }}
