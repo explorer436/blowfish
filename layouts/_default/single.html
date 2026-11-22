@@ -55,8 +55,23 @@
         {{ partial "series/series.html" . }}
         <div class="article-content max-w-prose mb-20">
           {{ .Content }}
-          {{ partial "backlinks.html" . }}
-          {{ partial "graph.html" . }}
+          /* {{ partial "backlinks.html" . }}
+          {{ partial "graph.html" . }} */
+          <aside id="page-connections" data-page-url="{{ .RelPermalink }}">
+            <section id="backlinks-panel">
+              <h3>Backlinks</h3>
+              <ul id="backlinks-list">
+                <li>Loading backlinks...</li>
+              </ul>
+            </section>
+
+            <section id="local-graph-panel">
+              <h3>Connected Pages</h3>
+              <ul id="local-graph-list">
+                <li>Loading connections...</li>
+              </ul>
+            </section>
+          </aside>
           {{ $defaultReplyByEmail := site.Params.replyByEmail }}
           {{ $replyByEmail := default $defaultReplyByEmail .Params.replyByEmail }}
           {{ if $replyByEmail }}
